@@ -1,0 +1,26 @@
+# Claude Code's MCP client config for Coder workspaces.
+#
+# The token is NOT in here: ${COGNITO_TOKEN} is expanded from the workspace's
+# environment at startup, which is what lets this ConfigMap be shared across
+# users while the credential stays per-user. The token itself comes from a
+# per-user Secret (mcp-token-<username>) mounted as env — a ConfigMap would be
+# readable by anyone with get access, and one user's token would grant that
+# user's persona to whoever read it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-mcp-config
+  namespace: ${namespace}
+data:
+  .mcp.json: |
+    {
+      "mcpServers": {
+        "sandbox": {
+          "type": "http",
+          "url": "http://agentgateway.agentgateway-system.svc.cluster.local:80/mcp",
+          "headers": {
+            "Authorization": "Bearer ${COGNITO_TOKEN}"
+          }
+        }
+      }
+    }

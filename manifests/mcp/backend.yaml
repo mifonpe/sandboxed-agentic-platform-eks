@@ -1,0 +1,45 @@
+# Routes MCP traffic through agentgateway to the mcp-sandbox Service.
+#
+# Uses `selector` rather than `static.backendRef`: the CRD recommends it for
+# in-cluster Services, and it keeps the backend pointed at whatever pods carry
+# the label instead of a fixed address.
+#
+# Reaching the MCP server directly at mcp-sandbox.mcp.svc:8080 still works and
+# bypasses every policy below — lock that down with a NetworkPolicy once the
+# gateway is the intended entry point.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: mcp-sandbox
+  namespace: ${namespace}
+spec:
+  mcp:
+    targets:
+      - name: sandboxed-python
+        selector:
+          services:
+            matchLabels:
+              app: mcp-sandbox
+---
+# Exposes the backend on the gateway. Without a route, the backend exists but
+# nothing reaches it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-sandbox
+  namespace: ${namespace}
+spec:
+  parentRefs:
+    - name: agentgateway
+      namespace: agentgateway-system
+      group: gateway.networking.k8s.io
+      kind: Gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mcp
+      backendRefs:
+        - name: mcp-sandbox
+          group: agentgateway.dev
+          kind: AgentgatewayBackend

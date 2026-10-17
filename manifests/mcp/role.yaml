@@ -1,0 +1,14 @@
+# Namespaced Role, not ClusterRole: the server only ever touches claims in the
+# sandbox namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-sandbox-claims
+  namespace: ${sandbox_namespace}
+rules:
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    # create/get/delete is the whole lifecycle: one claim per run_python call,
+    # polled until Ready, deleted in a finally block. No list/watch — the server
+    # only ever looks at claims it created by name.
+    verbs: ["create", "get", "delete"]

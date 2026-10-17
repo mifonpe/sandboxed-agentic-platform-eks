@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+:root {
+  --pixel-ink: #07143e;
+  --pixel-night: #102969;
+  --pixel-sky: #198ee5;
+  --pixel-cyan: #00e6ff;
+  --pixel-mint: #48f09b;
+  --pixel-gold: #ffc933;
+  --pixel-paper: #effcff;
+  --pixel-pink: #fe75b5;
+  --slidev-theme-primary: var(--pixel-cyan);
+}
+
+.slidev-page {
+  background:
+    linear-gradient(#d9f5ff 0 0) 6% 9% / 7px 7px no-repeat,
+    linear-gradient(#b5e7ff 0 0) 8% 11% / 4px 4px no-repeat,
+    linear-gradient(#d9f5ff 0 0) 92% 88% / 7px 7px no-repeat,
+    linear-gradient(#b5e7ff 0 0) 90% 86% / 4px 4px no-repeat,
+    #fff;
+  color: var(--pixel-ink);
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 1.45rem;
+  letter-spacing: 0.02em;
+}
+
+.slidev-page-1 .slidev-layout {
+  background-color: #000;
+  background-image: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.slidev-layout {
+  box-sizing: border-box;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border: 4px solid var(--pixel-cyan);
+  box-shadow: inset 0 0 0 4px var(--pixel-night), 8px 8px 0 #030817;
+  background-color: #fff;
+  background-image:
+    linear-gradient(#e0f7ff 0 0) 3% 6% / 8px 8px no-repeat,
+    linear-gradient(#abedff 0 0) 4.2% 8.2% / 4px 4px no-repeat,
+    linear-gradient(#e0f7ff 0 0) 97% 94% / 8px 8px no-repeat,
+    linear-gradient(#abedff 0 0) 95.8% 91.8% / 4px 4px no-repeat;
+  padding: 52px 64px;
+}
+
+/* Portadilla de seccion: fondo oscuro a pantalla completa, sin marco interior */
+.slidev-layout.section {
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  background-color: var(--pixel-ink);
+  background-image:
+    linear-gradient(rgba(0, 230, 255, 0.07) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(0, 230, 255, 0.07) 2px, transparent 2px);
+  background-size: 32px 32px, 32px 32px;
+  background-position: center;
+  background-repeat: repeat;
+}
+
+.slidev-layout.section :is(h1, h2, h3) {
+  color: var(--pixel-paper);
+  border-bottom: 0;
+  text-shadow: 4px 4px 0 var(--pixel-night);
+}
+
+.slidev-layout.section h1 {
+  color: var(--pixel-gold);
+  font-size: 2.6rem;
+  margin-bottom: 0.4em;
+  padding-bottom: 0;
+}
+
+.slidev-layout.section p {
+  color: var(--pixel-mint);
+  font-size: 2.2rem;
+  max-width: 80%;
+}
+
+.slidev-layout.cover {
+  border: 0;
+  box-shadow: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+.slidev-layout :is(h1, h2, h3) {
+  color: var(--pixel-ink);
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  letter-spacing: 0.035em;
+  line-height: 1.35;
+  text-shadow: 3px 3px 0 var(--pixel-cyan);
+}
+
+.slidev-layout h1 {
+  color: var(--pixel-night);
+  font-size: 1.1rem;
+  border-bottom: 4px solid var(--pixel-mint);
+  padding-bottom: 0.35em;
+  margin-bottom: 0.8em;
+}
+
+.slidev-layout h2 {
+  color: var(--pixel-night);
+  font-size: 0.9rem;
+}
+
+.slidev-layout p,
+.slidev-layout li {
+  line-height: 1.25;
+}
+
+.slidev-layout ul {
+  padding-left: 1.4em;
+}
+
+.slidev-layout li::marker {
+  color: var(--pixel-mint);
+  content: '▸  ';
+}
+
+.slidev-layout li li::marker {
+  color: var(--pixel-gold);
+  content: '▹  ';
+}
+
+.slidev-layout strong {
+  color: #00659a;
+}
+
+.slidev-layout a {
+  color: #0073b3;
+  font-weight: bold;
+  text-decoration: underline;
+  text-decoration-color: var(--pixel-mint);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.slidev-layout a:hover {
+  color: var(--pixel-sky);
+}
+
+.slidev-layout.section a {
+  color: var(--pixel-gold);
+  text-decoration-color: var(--pixel-mint);
+}
+
+.slidev-layout :not(pre) > code {
+  color: var(--pixel-mint);
+  background: #06112f;
+  border: 2px solid #1e5f96;
+  border-radius: 0;
+  padding: 0.08em 0.3em;
+}
+
+.slidev-layout blockquote {
+  border-left: 5px solid var(--pixel-pink);
+  background: #101e50;
+  margin-left: 0;
+  padding: 0.65em 1em;
+}
+
+.slidev-layout table {
+  border: 3px solid var(--pixel-cyan);
+}
+
+.slidev-layout th {
+  background: var(--pixel-night);
+  color: var(--pixel-gold);
+}
+
+.slidev-layout :is(td, th) {
+  border: 2px solid #267bb7;
+  padding: 0.35em 0.55em;
+}
+
+.slidev-vclick-target {
+  transition: none;
+}
+
+.slidev-vclick-hidden {
+  opacity: 0;
+}
+
+.slidev-vclick-current {
+  outline: 3px solid var(--pixel-gold);
+  outline-offset: 5px;
+}
+
+.slidev-page :is(.slidev-nav, .slidev-controls) button {
+  border: 2px solid var(--pixel-cyan);
+  border-radius: 0;
+  background: var(--pixel-night);
+  color: var(--pixel-paper);
+}

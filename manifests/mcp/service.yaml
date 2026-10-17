@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-sandbox
+  namespace: ${namespace}
+  labels:
+    app: mcp-sandbox
+  annotations:
+    # The server serves MCP at /mcp, not at the service root; without this the
+    # gateway proxies to / and the MCP handshake never lands.
+    agentgateway.dev/mcp-path: /mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: mcp-sandbox
+  ports:
+    - port: 8080
+      targetPort: http
+      name: http
+      # agentgateway only treats a Service port as an MCP target when its
+      # appProtocol is one of the MCP values — otherwise the port is skipped and
+      # the AgentgatewayBackend resolves to zero targets, which (with the default
+      # failureMode: FailClosed) makes every request hang rather than error.
+      appProtocol: agentgateway.dev/mcp

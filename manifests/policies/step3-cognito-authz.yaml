@@ -1,0 +1,84 @@
+# Step 3 — authenticate with Cognito, then authorize per tool per group.
+#
+# Two policies plus a backend:
+#   1. cognito-jwks     — agentgateway fetches the JWKS through a backendRef, not
+#                         a bare URL, so the JWKS host needs a static Backend.
+#                         policies.tls:{} opens TLS to :443 with the system trust
+#                         store and auto-SNI (Cognito serves a public cert).
+#   2. mcp-authn        — validates the access token on the Gateway. Strict mode
+#                         rejects a missing/invalid token with 401 before any
+#                         tool logic runs.
+#   3. mcp-tool-authz   — replaces the tool-only rule from step 2 with one that
+#                         also checks group membership.
+#
+# Expected: data-analyst can call run_python; viewer sees no tools at all; a
+# request with no token gets 401 rather than 403.
+#
+# cognito:groups is a claim whose name contains a colon and whose value is an
+# array, hence the CEL map-index form. VERIFY THIS LIVE — a claim expression that
+# silently never matches looks identical to a correctly-denied request.
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: cognito-jwks
+  namespace: agentgateway-system
+spec:
+  static:
+    host: ${cognito_jwks_host}
+    port: 443
+  policies:
+    tls: {}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: mcp-authn
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+    - kind: Gateway
+      name: agentgateway
+      group: gateway.networking.k8s.io
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      providers:
+        - issuer: ${cognito_issuer}
+          audiences:
+            - ${cognito_client_id}
+          jwks:
+            remote:
+              backendRef:
+                group: agentgateway.dev
+                kind: AgentgatewayBackend
+                name: cognito-jwks
+                namespace: agentgateway-system
+                port: 443
+              jwksPath: ${cognito_jwks_path}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: mcp-tool-authz
+  namespace: ${namespace}
+spec:
+  targetRefs:
+    - kind: AgentgatewayBackend
+      name: mcp-sandbox
+      group: agentgateway.dev
+  backend:
+    mcp:
+      authorization:
+        action: Allow
+        policy:
+          # matchExpressions are OR'd: a call is allowed if ANY expression matches.
+          # Everything not named here stays denied — and denied tools are hidden
+          # from tools/list, so each persona sees only what it may call.
+          matchExpressions:
+            # developer: run code, and manage the sandbox it runs in.
+            - 'mcp.tool.name in ["run_once", "run_python", "create_sandbox", "destroy_sandbox"] && "developer" in jwt["cognito:groups"]'
+            # analyst: move files, never execute. Needs sandbox lifecycle too,
+            # otherwise there is nothing to upload into.
+            - 'mcp.tool.name in ["upload_file", "download_file", "list_files", "create_sandbox", "destroy_sandbox"] && "analyst" in jwt["cognito:groups"]'
+            # finance: no rule, so every tool is denied.

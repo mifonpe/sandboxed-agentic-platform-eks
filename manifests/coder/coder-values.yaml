@@ -1,0 +1,25 @@
+# Coder server.
+#
+# CODER_ACCESS_URL stays cluster-internal: the ALB is HTTP-only, and Cognito
+# rejects non-HTTPS OIDC callbacks, so browser auth is not wired up yet. Set this
+# to the ALB hostname once there is TLS.
+coder:
+  env:
+    - name: CODER_PG_CONNECTION_URL
+      valueFrom:
+        secretKeyRef:
+          name: coder-db-url
+          key: url
+    - name: CODER_ACCESS_URL
+      value: http://coder.${namespace}.svc.cluster.local
+  service:
+    type: ClusterIP
+  ingress:
+    enable: true
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+      alb.ingress.kubernetes.io/load-balancer-name: ${cluster_name}-coder

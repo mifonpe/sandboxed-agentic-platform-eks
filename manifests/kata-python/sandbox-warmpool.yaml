@@ -1,0 +1,20 @@
+# SandboxWarmPool — pre-boots microVMs so a claim doesn't pay Kata's cold-boot cost.
+# Fixed size, bounded by the fixed Kata node group.
+#
+# replicas comes from var.agent_sandbox_warmpool_replicas via templatefile
+# (terraform/agentsandbox.tf), and DEFAULTS TO 0. Each replica is a microVM
+# sitting idle on a Kata node, so this is a standing cost traded against claim
+# latency — and the ceiling on how many sandboxes can be vended without waiting
+# for a cold boot.
+#
+# At 0 the pool pre-boots nothing, but claims still resolve — measured on a live
+# cluster, cold boot Ready in 3.9s. See var.agent_sandbox_warmpool_replicas.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: kata-python-pool
+  namespace: agent-sandbox
+spec:
+  replicas: ${warmpool_replicas}
+  sandboxTemplateRef:
+    name: kata-python

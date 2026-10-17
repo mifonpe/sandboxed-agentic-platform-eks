@@ -1,0 +1,70 @@
+# SandboxTemplate — pod spec for a vended sandbox. runtimeClassName targets the
+# already-installed Kata runtime; toleration + nodeSelector match the Kata node group
+# taint/labels (terraform/kata-nodegroup.tf). automountServiceAccountToken is off so
+# the microVM holds no Kubernetes credentials.
+#
+# runtimeClassName is templated: Terraform picks kata-clh or kata-qemu from
+# local.agent_sandbox_runtime, which follows var.kata_node_mode.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: kata-python
+  namespace: agent-sandbox
+spec:
+  service: true
+  # Air-gapped posture. networkPolicyManagement: Managed tells the controller to
+  # render the networkPolicy below instead of its permissive default (which allowed
+  # egress to 0.0.0.0/0 minus RFC1918 — i.e. full internet from a sandbox running
+  # untrusted code).
+  #
+  # A custom networkPolicy REPLACES the vetted defaults wholesale, so the router
+  # ingress rule has to be restated here — omit it and the router can no longer
+  # reach the sandbox it just vended.
+  #
+  # egress: [] means NO outbound at all, DNS included. The python runtime serves on
+  # 8888 and never dials out; its readiness probe is kubelet-to-pod ingress, which
+  # NetworkPolicy does not gate. A sandbox that needs to resolve names or install
+  # packages needs a SEPARATE template with explicit egress — do not loosen this one.
+  networkPolicyManagement: Managed
+  networkPolicy:
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: agent-sandbox-system
+            podSelector:
+              matchLabels:
+                app: sandbox-router
+    egress: []
+  podTemplate:
+    spec:
+      runtimeClassName: ${runtime_class}
+      automountServiceAccountToken: false
+      nodeSelector:
+        workload-type: kata
+      tolerations:
+        - key: kata
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: python-runtime
+          image: us-central1-docker.pkg.dev/k8s-staging-images/agent-sandbox/python-runtime-sandbox:latest-main
+          ports:
+            - containerPort: 8888
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8888
+            initialDelaySeconds: 0
+            periodSeconds: 1
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 1Gi
+      restartPolicy: OnFailure

@@ -1,0 +1,8 @@
+# The official MCP SDK bundles FastMCP; the standalone `fastmcp` package is a
+# separate lineage. mcp 2.0 renamed FastMCP to MCPServer and dropped
+# mcp.server.fastmcp, so pin below it.
+mcp[cli]>=1.10,<2
+uvicorn
+httpx
+kubernetes
+pyyaml

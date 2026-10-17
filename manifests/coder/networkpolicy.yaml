@@ -1,0 +1,117 @@
+# NetworkPolicies for the coder namespace.
+#
+# Workspace pods run attendee-controlled code with a shell. They sit in the SAME
+# namespace as the Coder server and its Postgres, so by default they can reach
+# both — the database on 5432 holds every user, token and template.
+#
+# Scope note: these constrain the workspace POD. They are not the isolation
+# boundary — that is Kata (its own kernel, per workspace). This is defence in
+# depth against lateral movement to the control plane next door.
+#
+# Two policies:
+#   1. postgres-server-only   closes the hole the Bitnami chart leaves open
+#   2. workspace-egress       stops workspaces reaching Coder's Postgres and the
+#                             node metadata endpoint, while leaving everything the
+#                             workspace legitimately needs
+#
+# NOT applied to the Coder server itself: it needs broad ingress (ALB health
+# checks from the node, agent websockets, the ALB target group) and locking its
+# ingress down is how you get a workspace that will not connect.
+---
+# The Bitnami postgresql chart ships `ingress: [{ports: [5432]}]` with NO `from`,
+# which allows EVERY pod in the cluster. This replaces it with the server and the
+# Postgres pod itself (the chart's own probes/replication connect locally).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coder-postgres-server-only
+  namespace: ${namespace}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Workspace egress.
+#
+# Deny-by-default would break the workshop: the startup script installs Claude
+# Code from claude.ai, the AWS CLI from awscli.amazonaws.com and code-server from
+# code-server.dev, all over the internet. So this allows broad egress and carves
+# out the two things a workspace must NOT reach:
+#
+#   - Coder's Postgres (5432) — every user, token and template lives there
+#   - 169.254.169.254/32 — IMDS. The node role is far more privileged than the
+#     workspace's own Pod Identity role. Pod Identity itself uses 169.254.170.23,
+#     which stays allowed, so Bedrock credentials still work.
+#
+# NetworkPolicy has no deny rule: "allow everything except X" is expressed as an
+# ipBlock with `except`, plus an explicit in-cluster allow (cluster traffic is
+# RFC1918 and would otherwise be caught by the except blocks).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coder-workspace-egress
+  namespace: ${namespace}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: coder-workspace
+  policyTypes:
+    - Egress
+  egress:
+    # DNS — without this nothing resolves and every install silently fails.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # The Coder server (agent websocket) — by label, not ClusterIP.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
+    # agentgateway: both the model path (/bedrock) and MCP tools (/mcp).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agentgateway-system
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: agentgateway
+    # Everything else: the public internet, minus IMDS and the cluster's own
+    # RFC1918 ranges (those are covered by the explicit rules above, so excepting
+    # them here denies pod-to-pod lateral movement without blocking what is needed).
+    # 169.254.170.23 (Pod Identity) is NOT excepted — it must stay reachable.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+    # Pod Identity credentials endpoint, re-allowed explicitly: it is link-local
+    # (169.254.170.23) and would otherwise need an exception carved out of the
+    # link-local range. Without this the workspace gets no AWS credentials at all.
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80

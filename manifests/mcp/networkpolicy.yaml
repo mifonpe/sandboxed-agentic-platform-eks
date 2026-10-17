@@ -1,0 +1,41 @@
+# Only agentgateway may reach the MCP server.
+#
+# agentgateway is the enforcement point: it validates the Cognito JWT and
+# authorizes each tool against cognito:groups. But nothing FORCED traffic through
+# it — mcp-sandbox.mcp.svc:8080 was reachable from any pod in the cluster, which
+# skips authn and authz entirely. A workspace pod (running attendee code) could
+# call run_python as nobody, with no token. This policy closes that bypass.
+#
+# Ingress-only. No policyTypes: Egress here, deliberately: the server must still
+# reach the Kubernetes API (to create SandboxClaims) and the sandbox-router (to
+# proxy code into a microVM). Adding an empty egress rule would deny both and
+# break every tool call. The air-gap belongs on the SANDBOX
+# (manifests/kata-python/sandbox-template.yaml), which is the untrusted side —
+# this process is trusted, it just must not be publicly callable.
+#
+# The podSelector matches the DATA PLANE proxy, not the controller. Both carry
+# app.kubernetes.io/name=agentgateway; only the proxy carries
+# gateway.networking.k8s.io/gateway-name. The controller only reconciles CRs and
+# never proxies MCP traffic, so it has no business reaching this port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-sandbox-gateway-only
+  namespace: ${namespace}
+spec:
+  podSelector:
+    matchLabels:
+      app: mcp-sandbox
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agentgateway-system
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: agentgateway
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,129 @@
+# Bedrock through agentgateway, authorized by the Cognito JWT.
+#
+# Model access governed by the SAME `cognito:groups` claim that governs MCP tool
+# access, at the same enforcement point. Without this, workspaces call Bedrock
+# directly with a shared Pod Identity role: every persona has identical model
+# rights and no invocation is attributable to a user — `finance` is denied every
+# tool yet can invoke Claude at full rate.
+#
+# Four objects:
+#   1. bedrock-claude    AgentgatewayBackend, ai/bedrock provider. Auth is
+#                        OMITTED on purpose: the gateway then uses ambient AWS
+#                        SDK credential discovery, i.e. the Pod Identity role
+#                        from terraform/agentgateway-bedrock.tf. No static keys.
+#   2. bedrock-claude    HTTPRoute on /bedrock.
+#   3. bedrock-routes    Maps the path to the Anthropic Messages API. REQUIRED —
+#                        see the comment on that object.
+#   4. model-authz       Per-persona access, same CEL + jwt[] shape as
+#                        step3-cognito-authz.yaml.
+#
+# JWT authentication is NOT redefined here: the existing `mcp-authn` policy
+# targets the Gateway, so every route through it already requires a valid token.
+#
+# Apply with `make deploy-model-authz`.
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: bedrock-claude
+  namespace: ${namespace}
+spec:
+  ai:
+    groups:
+      - providers:
+          - name: bedrock
+            bedrock:
+              # No `model:` key. Setting it OVERRIDES the model in every request
+              # regardless of what the caller asked for, which silently pins all
+              # traffic to one model and makes a per-model IAM denial look like a
+              # gateway bug. The caller's model is used instead, and IAM on the
+              # gateway role is what bounds which models are reachable.
+              region: ${bedrock_region}
+---
+# Exposes the backend. Without a route the backend exists but nothing reaches it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bedrock-claude
+  namespace: ${namespace}
+spec:
+  parentRefs:
+    - name: agentgateway
+      namespace: agentgateway-system
+      group: gateway.networking.k8s.io
+      kind: Gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /bedrock
+      backendRefs:
+        - name: bedrock-claude
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+---
+# Traffic-type mapping. REQUIRED for Claude Code.
+#
+# `routes` defaults to Completions, which makes /v1/messages answer in OPENAI
+# shape ({"choices":[...]}) even though the request was Anthropic-shaped. Claude
+# Code parses that as a malformed response. `Messages` makes the gateway emit
+# native Anthropic ({"type":"message","content":[...],"stop_reason":...}), both
+# buffered and as SSE when stream=true.
+#
+# Lives on a Policy, not on the Backend: `spec.ai.routes` on an
+# AgentgatewayBackend is silently ignored ("unknown field", patch succeeds, no
+# effect).
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: bedrock-routes
+  namespace: ${namespace}
+spec:
+  targetRefs:
+    - kind: AgentgatewayBackend
+      name: bedrock-claude
+      group: agentgateway.dev
+  backend:
+    ai:
+      routes:
+        "/v1/messages": Messages
+        "/v1/chat/completions": Completions
+---
+# Per-persona MODEL access.
+#
+# Allow semantics (from the CRD): "If at least one Allow rule is configured,
+# requests are denied unless at least one allow rule matches." finance therefore
+# needs no explicit deny — the absence of a matching rule IS the deny.
+#
+# Targets the HTTPRoute, not the Backend: `traffic` policies may only attach to a
+# Gateway, ListenerSet, GRPCRoute, HTTPRoute or InferencePool. (The MCP tool
+# policy targets a Backend because it uses `backend.mcp`, a different stanza.)
+# Attaching to the route rather than the Gateway keeps this scoped to /bedrock
+# instead of gating every route on the gateway.
+#
+# NOTE: passing this check is necessary but not sufficient — the gateway's IAM
+# role still has to permit the requested model. A model outside that policy
+# returns a Bedrock 403 even for an allowed persona.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: model-authz
+  namespace: ${namespace}
+spec:
+  targetRefs:
+    - kind: HTTPRoute
+      name: bedrock-claude
+      group: gateway.networking.k8s.io
+  traffic:
+    authorization:
+      action: Allow
+      policy:
+        matchExpressions:
+          # developer: full model access.
+          - '"developer" in jwt["cognito:groups"]'
+          # analyst: model access too — the tool policy already stops them
+          # executing code, and an analyst that cannot reason about the files it
+          # moves is not a useful persona.
+          - '"analyst" in jwt["cognito:groups"]'
+          # finance: no rule, so the model is denied. Verified: 403
+          # "authorization failed" from the gateway, before any AWS call.

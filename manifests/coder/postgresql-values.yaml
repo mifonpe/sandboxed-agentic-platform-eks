@@ -1,0 +1,18 @@
+# Bitnami Postgres backing Coder.
+#
+# ponytail: EBS volumes are zonal, so this pins the pod to one AZ. If the only
+# node left in that AZ is tainted (the Kata group is), the pod goes Pending with
+# "didn't match PersistentVolume's node affinity" — delete the PVC to let it
+# rebind, or move to RDS if workspace metadata has to survive an AZ loss.
+global:
+  security:
+    allowInsecureImages: true
+auth:
+  username: coder
+  password: ${pg_password}
+  database: coder
+primary:
+  persistence:
+    enabled: true
+    storageClass: ebs-sc
+    size: 20Gi

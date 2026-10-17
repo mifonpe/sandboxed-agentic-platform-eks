@@ -1,0 +1,26 @@
+# Step 1 — deny every tool call (deny-by-default), no identity involved yet.
+#
+# agentgateway's authorization semantics: once at least ONE Allow rule exists on
+# a backend, any call_tool not matched by an Allow is denied. So an Allow whose
+# expression can never be true denies everything — the baseline you add
+# permissions onto, rather than starting open and trying to subtract.
+#
+# Expected after applying: tools/call run_python fails, and run_python
+# disappears from tools/list (unauthorized tools are hidden, not just rejected).
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: mcp-tool-authz
+  namespace: ${namespace}
+spec:
+  targetRefs:
+    - kind: AgentgatewayBackend
+      name: mcp-sandbox
+      group: agentgateway.dev
+  backend:
+    mcp:
+      authorization:
+        action: Allow
+        policy:
+          matchExpressions:
+            - 'false'

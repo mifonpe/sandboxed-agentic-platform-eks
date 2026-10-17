@@ -1,0 +1,19 @@
+[project]
+name = "qrs"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Alberto Rodriguez",email = "65337726+albrodfer1@users.noreply.github.com"}
+]
+requires-python = ">=3.14,<4.0"
+dependencies = [
+    "qrcode[pil] (>=8.2,<9.0)"
+]
+
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

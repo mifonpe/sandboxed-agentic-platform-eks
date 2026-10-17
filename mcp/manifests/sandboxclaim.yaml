@@ -1,0 +1,16 @@
+# SandboxClaim — one per run_python call, deleted when the call returns.
+#
+# ${claim_name} is generated per call. shutdownPolicy: Delete + ttl is the
+# backstop: if this broker dies mid-run, the controller still reaps the claim and
+# its microVM instead of leaving it to idle forever.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxClaim
+metadata:
+  name: ${claim_name}
+  namespace: ${namespace}
+spec:
+  warmPoolRef:
+    name: ${warmpool}
+  lifecycle:
+    shutdownPolicy: Delete
+    ttlSecondsAfterFinished: ${ttl_seconds}
